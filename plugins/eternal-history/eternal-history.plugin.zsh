@@ -76,7 +76,7 @@ if [ "$PS1" ]; then
     PROMPT_COMMAND="setPS1; ${PROMPT_COMMAND:+$PROMPT_COMMAND ; }"'echo -e $$\\t$USER\\t$HOSTNAME\\tscreen $WINDOW\\t`date +%D%t%T%t%Y%t%s`\\t$PWD"$(history 1)" >> ~/.eternal_history'
 
     # Turn on checkwinsize
-    shopt -s checkwinsize
+    #shopt -s checkwinsize
 
     #Prompt edited from default
     [ "$PS1" = "\\s-\\v\\\$ " ] && PS1="[\\u \\w]\\$ "
@@ -93,4 +93,4 @@ fi
 
 # Append to history
 # See: http://www.tldp.org/HOWTO/Bash-Prompt-HOWTO/x329.html
-shopt -s histappend
+# shopt -s histappend
