@@ -2,46 +2,64 @@
 #
 # Functions
 #
-# add to history ~/.eternal_history with prompt
+# add to history ~/.eternal_history via prompt
 
-# Aliases
+# Aliases & Functions
 # (sorted alphabetically)
-#
+
+function eternalhist() {
+    # option -d; parse UTC seconds timestamp into readable local time date
+    if [ "$1" = "-d" ] || [ "$1" = "--date" ] ; then
+        opt="date"
+        shift
+    fi
+    local QU="cat ~/.eternal_history |"
+    for GR in "$@"
+    do
+        QU="${QU} grep -i ${GR} | " 
+    done
+    if [ "$opt" = "date" ]; then
+        # shellcheck disable=SC2154
+        eval "${QU}" cut -f 5- 
+    else
+        eval "${QU} cut -d ' ' -f 5-"
+    fi
+}
 
 # ---------------------------------------------------------
 #  Set various zsh parameters based on whether the shell is 'interactive'
 #  or not.  An interactive shell is one you type commands into, a
 #  non-interactive one is the bash environment used in scripts.
-if [ "$PS1" ]; then
-    if [ -x /usr/bin/tput ] && [ "${TERM}" != "dumb" ]; then
-        if [ "x$(tput kbs)" != "x" ]; then # We can't do this with "dumb" terminal -- this if stmt does not work on Mac OS 
+if [[ ${+PS1} ]]; then
+    if [[ -x /usr/bin/tput ]] && [[ "${TERM}" != "dumb" ]]; then
+        if [[ "x$(tput kbs)" != "x" ]]; then # We can't do this with "dumb" terminal -- this if stmt does not work on Mac OS 
             stty erase "$(tput kbs)"
-        elif [ -x /usr/bin/wc ]; then
-            if [ "$(tput kbs|wc -c )" -gt 0 ]; then # We can't do this with "dumb" terminal
+        elif [[ -x /usr/bin/wc ]]; then
+            if [[ "$(tput kbs|wc -c )" -gt 0 ]]; then # We can't do this with "dumb" terminal
                 stty erase "$(tput kbs)"
             fi
         fi
     fi
     case $TERM in
     xterm*)
-        if [ -e /etc/sysconfig/bash-prompt-xterm ]; then
+        if [[ -e /etc/sysconfig/bash-prompt-xterm ]]; then
             PROMPT_COMMAND=/etc/sysconfig/bash-prompt-xterm
         else
-            PROMPT_COMMAND='echo -ne "\033]0;${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/~}\007"'
+            PROMPT_COMMAND='echo -n "\033]0;${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/~}\007"'
         fi
         ;;
     screen)
-        if [ -e /etc/sysconfig/bash-prompt-screen ]; then
+        if [[ -e /etc/sysconfig/bash-prompt-screen ]]; then
             PROMPT_COMMAND=/etc/sysconfig/bash-prompt-screen
         else
-        PROMPT_COMMAND='echo -ne "\033_${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/~}\033\\"'
+        PROMPT_COMMAND='echo -n "\033_${USER}@${HOSTNAME%%.*}:${PWD/#$HOME/~}\033\\"'
         fi
         ;;
     dumb)
-        PROMPT_COMMAND="echo -ne dumb terminal"
+        PROMPT_COMMAND="echo -n dumb terminal"
         ;;
     *)
-        [ -e /etc/sysconfig/bash-prompt-default ] && PROMPT_COMMAND=/etc/sysconfig/bash-prompt-default
+        [[ -e /etc/sysconfig/bash-prompt-default ]] && PROMPT_COMMAND=/etc/sysconfig/bash-prompt-default
 
         ;;
     esac
@@ -73,7 +91,7 @@ if [ "$PS1" ]; then
     # define a bash function which escapes the string before writing it; if you
     # have a fix for that which doesn't slow the command down, please submit
     # a patch or pull request.
-    PROMPT_COMMAND="setPS1; ${PROMPT_COMMAND:+$PROMPT_COMMAND ; }"'echo -e $$\\t$USER\\t$HOSTNAME\\tscreen $WINDOW\\t`date +%D%t%T%t%Y%t%s`\\t$PWD"$(history 1)" >> ~/.eternal_history'
+    PROMPT_COMMAND="setPS1; ${PROMPT_COMMAND:+$PROMPT_COMMAND ; }"'echo -n $$\\t$USER\\t$HOSTNAME\\tscreen $WINDOW\\t`date +%D%t%T%t%Y%t%s`\\t$PWD" >> ~/.eternal_history'
 
     # Turn on checkwinsize
     #shopt -s checkwinsize
