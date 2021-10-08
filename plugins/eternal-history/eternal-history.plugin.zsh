@@ -64,7 +64,7 @@ if [[ ${+PS1} ]]; then
         ;;
     esac
 
-    # Bash eternal history
+    # eternal history
     # --------------------
     # This snippet allows infinite recording of every command you've ever
     # entered on the machine, without using a large HISTFILESIZE variable,
