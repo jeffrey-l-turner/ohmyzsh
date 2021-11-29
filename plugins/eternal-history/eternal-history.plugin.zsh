@@ -10,20 +10,54 @@
 function eternalhist() {
     # option -d; parse UTC seconds timestamp into readable local time date
     if [ "$1" = "-d" ] || [ "$1" = "--date" ] ; then
-        opt="date"
+        local stmt='system("bash -c date -r $1"); $1=""; printf $0'
+        local CMD="awk { ${stmt}; $1=''; printf $0 }" 
+      #'{ system("bash -c date -r $1 +%Y-%m-%d_%H:%M:%S") }' 
         shift
+      else
+        local CMD=cat
     fi
-    local QU="cat ~/.eternal_history |"
+    local QU="cat ~/.eternal_history"
     for GR in "$@"
     do
-        QU="${QU} grep -i ${GR} | " 
+        QU="${QU} | grep -i ${GR} " 
     done
-    if [ "$opt" = "date" ]; then
-        # shellcheck disable=SC2154
-        eval "${QU}" cut -f 5- 
-    else
-        eval "${QU} cut -d ' ' -f 5-"
-    fi
+    echo "${QU}" | ${CMD} 
+    eval "${QU}" | ${CMD} 
+}
+
+function humanReadableDate() {
+  date -r $1 +"%Y-%m-%d %H:%M:%S"
+}
+
+# searches history by "anding" set of parameters together via grep
+function ht() {
+    local QU="history "
+    for GR in "$@"
+    do
+        QU="${QU} | grep -i ${GR} " 
+    done
+    eval "${QU}"
+}
+
+# incomplete functions for appending to eternal history
+function _concatToEternalHist() {
+  local last recent linenum
+  last=$(grep -Fn "$(tail -1 ~/OneDrive/_eternal_hist | cut -f 5 | cut -d ' ' -f 4)" ~/OneDrive/_eternal_hist  | sed s/:.*$//)
+  recent=$(wc -l ~/._eternal_history | sed 's/ \/.*//' | sed 's/^ *//')
+  # shellcheck disable=SC2219
+  let linenum="${recent} - ${last}"
+  tail -n "${linenum}" ~/.eternal_history >> ~/OneDrive/_eternal_hist
+}
+
+function mergeEternalHist() {
+  rm -f /tmp/_eternal_hist
+  _concatToEternalHist 
+  sort -n --key=8 ~/OneDrive/_eternal_hist  | LC_ALL=C uniq > /tmp/_eternal_hist
+  chmod 600 /tmp/_eternal_hist
+  cp -i /tmp/_eternal_hist ~/OneDrive/_eternal_hist  
+  mv -i /tmp/_eternal_hist ~/.eternal_history 
+  rm -f /tmp/_eternal_hist
 }
 
 # ---------------------------------------------------------
