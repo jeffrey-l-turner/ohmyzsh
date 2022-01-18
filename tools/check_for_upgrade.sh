@@ -10,11 +10,13 @@ fi
 # - auto: the update is performed automatically when it's time
 # - reminder: a reminder is shown to the user when it's time to update
 # - disabled: automatic update is turned off
-zstyle -s ':omz:update' mode update_mode || update_mode=prompt
+zstyle -s ':omz:update' mode update_mode || {
+  update_mode=prompt
 
-# Support old-style settings
-[[ "$DISABLE_UPDATE_PROMPT" != true ]] || update_mode=auto
-[[ "$DISABLE_AUTO_UPDATE" != true ]] || update_mode=disabled
+  # If the mode zstyle setting is not set, support old-style settings
+  [[ "$DISABLE_UPDATE_PROMPT" != true ]] || update_mode=auto
+  [[ "$DISABLE_AUTO_UPDATE" != true ]] || update_mode=disabled
+}
 
 # Cancel update if:
 # - the automatic update is disabled.
@@ -133,6 +135,12 @@ function update_ohmyzsh() {
     return
   fi
 
+  # Test if Oh My Zsh directory is a git repository
+  if ! (cd "$ZSH" && LANG= git rev-parse &>/dev/null); then
+    echo >&2 "[oh-my-zsh] Can't update: not a git repository."
+    return
+  fi
+
   # Check if there are updates available before proceeding
   if ! is_update_available; then
     return
@@ -154,7 +162,8 @@ function update_ohmyzsh() {
     [[ "$option" != $'\n' ]] && echo
     case "$option" in
       [yY$'\n']) update_ohmyzsh ;;
-      [nN]) update_last_updated_file ;;
+      [nN]) update_last_updated_file ;&
+      *) echo "[oh-my-zsh] You can update manually by running \`omz update\`" ;;
     esac
   fi
 }
