@@ -96,7 +96,7 @@ With no ARGUMENT, list the directory history in ascending rank.
   -t    Match by recent access
   -x    Remove a directory from the database (by default, the current directory)
   -xR   Remove a directory and its subdirectories from the database (by default, the current directory)" |
-    fold -s -w $COLUMNS >&2
+    fold -s -w $(( COLUMNS > 0 ? COLUMNS : 80 )) >&2
 }
 
 # Load zsh/datetime module, if necessary
@@ -251,7 +251,7 @@ zshz() {
         if (( ${ZSHZ_NO_RESOLVE_SYMLINKS:-${_Z_NO_RESOLVE_SYMLINKS}} )); then
           [[ -d ${${*:-${PWD}}:a} ]] && xdir=${${*:-${PWD}}:a}
         else
-          [[ -d ${${*:-${PWD}}:A} ]] && xdir=${${*:-${PWD}}:a}
+          [[ -d ${${*:-${PWD}}:A} ]] && xdir=${${*:-${PWD}}:A}
         fi
 
         local -a lines_to_keep
@@ -741,6 +741,9 @@ zshz() {
   for opt in ${(k)opts}; do
     case $opt in
       --add)
+        # Don't change the database when invoked via --complete (e.g., from
+        # tab completion).
+        (( ${+opts[--complete]} )) && continue
         [[ ! -d $* ]] && return 1
         local dir
         # Cygwin and MSYS2 have a hard time with relative paths expressed from /
@@ -764,6 +767,7 @@ zshz() {
         ;;
       -c) [[ $* == ${PWD}/* || $PWD == '/' ]] || prefix="$PWD " ;;
       -h|--help)
+        (( ${+opts[--complete]} )) && continue
         _zshz_usage
         return
         ;;
@@ -771,6 +775,7 @@ zshz() {
       -r) method='rank' ;;
       -t) method='time' ;;
       -x)
+        (( ${+opts[--complete]} )) && continue
         # Cygwin and MSYS2 have a hard time with relative paths expressed from /
         if [[ $OSTYPE == (cygwin|msys) && $PWD == '/' && $* != /* ]]; then
           set -- "/$*"
@@ -844,7 +849,8 @@ zshz() {
 
   # New experimental "uncommon" behavior
   #
-  # If the best choice at this point is something like /foo/bar/foo/bar, and the  # search pattern is `bar', go to /foo/bar/foo/bar; but if the search pattern
+  # If the best choice at this point is something like /foo/bar/foo/bar, and the
+  # search pattern is `bar', go to /foo/bar/foo/bar; but if the search pattern
   # is `foo', go to /foo/bar/foo
   if (( ZSHZ_UNCOMMON )) && [[ -n $cd ]]; then
     if [[ -n $cd ]]; then
@@ -960,8 +966,13 @@ add-zsh-hook chpwd _zshz_chpwd
 
 (( ${fpath[(ie)${0:A:h}]} <= ${#fpath} )) || fpath=( "${0:A:h}" "${fpath[@]}" )
 
-# Save the existing Tab binding
-ZSHZ[TAB_BINDING]="${$(bindkey -M main '^I')##* }"
+
+# Save the existing Tab binding so that the completion widget can invoke it,
+# but being careful not to create a situation where the widget ends up calling
+# itself and causing infinite recursion if this script is re-sourced.
+if (( ! ${+widgets[_zshz_zle_completion_widget]} )); then
+  ZSHZ[TAB_BINDING]="${$(bindkey -M main '^I')##* }"
+fi
 
 ############################################################
 # ZLE widget to fix spaces-as-wildcards completion
@@ -976,7 +987,9 @@ ZSHZ[TAB_BINDING]="${$(bindkey -M main '^I')##* }"
 #   ZSHZ_CMD
 ############################################################
 _zshz_zle_completion_widget() {
-  emulate -L zsh
+
+  setopt LOCAL_OPTIONS EXTENDED_GLOB NO_KSH_ARRAYS NO_SH_WORD_SPLIT
+
   local cmd=${ZSHZ_CMD:-${_Z_CMD:-z}}
 
   # If a trailing space was added after an already-completed absolute path
@@ -989,21 +1002,24 @@ _zshz_zle_completion_widget() {
   # Only act when there are at least two words after the command
   if [[ $LBUFFER == ${cmd}\ *\ * ]]; then
     local after=${LBUFFER#${cmd} }
-    local -a parts flag_parts search_parts
-    local p past_flags=0
+    local -a parts option_parts search_parts
+    local p past_options=0
 
     parts=( ${(z)after} )
     for p in $parts; do
-      if (( ! past_flags )) && [[ $p == -[cehlrRtx]## ]]; then
-        flag_parts+=( $p )
+      if (( ! past_options )) && [[ $p == (--|-[cehlrRtx]##|--add|--complete|--help) ]]; then
+        option_parts+=( $p )
+        # `--' terminates option parsing; subsequent tokens are positional,
+        # even if they happen to look like options.
+        [[ $p == -- ]] && past_options=1
       else
-        past_flags=1
+        past_options=1
         search_parts+=( $p )
       fi
     done
 
     if (( ${#search_parts} > 1 )); then
-      LBUFFER="${cmd}${flag_parts:+ ${(j: :)flag_parts}} ${(j:*:)search_parts}"
+      LBUFFER="${cmd}${option_parts:+ ${(j: :)option_parts}} ${(j:*:)search_parts}"
     fi
   fi
 
@@ -1012,9 +1028,12 @@ _zshz_zle_completion_widget() {
   zle ${ZSHZ[TAB_BINDING]:-expand-or-complete}
 }
 
-zle -N _zshz_zle_completion_widget
-
-bindkey -M main '^I' _zshz_zle_completion_widget
+# Register the widget and bind to Tab, but only if this script has not already
+# been sourced -- avoid infinite recursion.
+if (( ! ${+widgets[_zshz_zle_completion_widget]} )); then
+  zle -N _zshz_zle_completion_widget
+  bindkey -M main '^I' _zshz_zle_completion_widget
+fi
 
 ############################################################
 # zsh-z functions
